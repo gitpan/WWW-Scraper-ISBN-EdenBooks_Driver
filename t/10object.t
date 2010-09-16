@@ -7,15 +7,63 @@ use WWW::Scraper::ISBN;
 
 ###########################################################
 
-my $CHECK_DOMAIN = 'www.google.com';
+my $DRIVER          = 'EdenBooks';
+my $CHECK_DOMAIN    = 'www.google.com';
+
+my %tests = (
+    '0552557803' => [
+        [ 'is',     'isbn',         '9780552557801'     ],
+        [ 'is',     'isbn10',       '0552557803'        ],
+        [ 'is',     'isbn13',       '9780552557801'     ],
+        [ 'is',     'ean13',        '9780552557801'     ],
+        [ 'is',     'title',        'Nation'            ],
+        [ 'is',     'author',       'Terry Pratchett'   ],
+        [ 'is',     'publisher',    'Random House Children\'s Books'    ],
+        [ 'is',     'pubdate',      '1st October 2009' ],
+        [ 'is',     'binding',      'Paperback'         ],
+        [ 'is',     'pages',        '300'               ],
+        [ 'is',     'width',        undef               ],
+        [ 'is',     'height',       undef               ],
+        [ 'is',     'weight',       undef               ],
+        [ 'is',     'image_link',   'http://www.eden.co.uk/images/300/9780552557801.jpg' ],
+        [ 'is',     'thumb_link',   'http://www.eden.co.uk/images/150/9780552557801.jpg' ],
+        [ 'like',   'description',  qr|Finding himself alone on a desert island| ],
+        [ 'like',   'book_link',    qr|http://www.edenbookshop.co.uk/books/nation-2344030.html| ]
+    ],
+    '9780571239566' => [
+        [ 'is',     'isbn',         '9780571239566'     ],
+        [ 'is',     'isbn10',       '0571239560'        ],
+        [ 'is',     'isbn13',       '9780571239566'     ],
+        [ 'is',     'ean13',        '9780571239566'     ],
+        [ 'is',     'title',        'Touching From A Distance'  ],
+        [ 'is',     'author',       'Deborah Curtis'    ],
+        [ 'is',     'publisher',    'Faber And Faber'   ],
+        [ 'is',     'pubdate',      '4th October 2007'   ],
+        [ 'is',     'binding',      'Paperback'         ],
+        [ 'is',     'pages',        240                 ],
+        [ 'is',     'width',        129                 ],
+        [ 'is',     'height',       198                 ],
+        [ 'is',     'weight',       200                 ],
+        [ 'is',     'image_link',   'http://www.eden.co.uk/images/300/9780571239566.jpg' ],
+        [ 'is',     'thumb_link',   'http://www.eden.co.uk/images/150/9780571239566.jpg' ],
+        [ 'like',   'description',  qr|Ian Curtis left behind a legacy rich in artistic genius| ],
+        [ 'like',   'book_link',    qr|http://www.edenbookshop.co.uk/books/touching-from-a-distance-1548377.html| ]
+    ],
+);
+
+my $tests = 0;
+for my $isbn (keys %tests) { $tests += scalar( @{ $tests{$isbn} } ) + 2 }
+
+
+###########################################################
 
 my $scraper = WWW::Scraper::ISBN->new();
 isa_ok($scraper,'WWW::Scraper::ISBN');
 
 SKIP: {
-	skip "Can't see a network connection", 39   if(pingtest($CHECK_DOMAIN));
+	skip "Can't see a network connection", $tests+1   if(pingtest($CHECK_DOMAIN));
 
-	$scraper->drivers("EdenBooks");
+	$scraper->drivers($DRIVER);
 
     # this ISBN doesn't exist
 	my $isbn = "1234567890";
@@ -30,75 +78,30 @@ SKIP: {
 		like($record->error,qr/Failed to find that book on EdenBooks website|website appears to be unavailable/);
     }
 
-	$isbn = "0552557803";
-	$record = $scraper->search($isbn);
-    my $error  = $record->error || '';
+    for my $isbn (keys %tests) {
+        $record = $scraper->search($isbn);
+        my $error  = $record->error || '';
 
-    SKIP: {
-        skip "Website unavailable", 19   if($error =~ /website appears to be unavailable/);
+        SKIP: {
+            skip "Website unavailable", scalar(@{ $tests{$isbn} }) + 2   
+                if($error =~ /website appears to be unavailable/);
 
-        unless($record->found) {
-            diag("ERROR: [$isbn] ".$record->error);
-        }
-        
-        {
+            unless($record->found) {
+                diag($record->error);
+            }
+
             is($record->found,1);
-            is($record->found_in,'EdenBooks');
+            is($record->found_in,$DRIVER);
 
             my $book = $record->book;
-            is($book->{'isbn'},         '9780552557801'         ,'.. isbn found');
-            is($book->{'isbn10'},       '0552557803'            ,'.. isbn10 found');
-            is($book->{'isbn13'},       '9780552557801'         ,'.. isbn13 found');
-            is($book->{'ean13'},        '9780552557801'         ,'.. ean13 found');
-            like($book->{'author'},     qr/Terry Pratchett/     ,'.. author found');
-            is($book->{'title'},        q|Nation|               ,'.. title found');
-            like($book->{'book_link'},  qr|http://www.edenbookshop.co.uk/books/nation-2344030.html|);
-            is($book->{'image_link'},   'http://www.eden.co.uk/images/300/9780552557801.jpg');
-            is($book->{'thumb_link'},   'http://www.eden.co.uk/images/150/9780552557801.jpg');
-            like($book->{'description'},qr/Finding himself alone on a desert island/    ,'.. description found');
-            is($book->{'publisher'},    'Random House Children\'s Books'                     ,'.. publisher found');
-            is($book->{'pubdate'},      '1st October 2009'     ,'.. pubdate found');
-            is($book->{'binding'},      'Paperback'             ,'.. binding found');
-            is($book->{'pages'},        300                     ,'.. pages found');
-            is($book->{'width'},        undef                   ,'.. width found');
-            is($book->{'height'},       undef                   ,'.. height found');
-            is($book->{'weight'},       undef                   ,'.. weight found');
-        }
-    }
+            for my $test (@{ $tests{$isbn} }) {
+                if($test->[0] eq 'ok')          { ok(       $book->{$test->[1]},             ".. '$test->[1]' found [$isbn]"); } 
+                elsif($test->[0] eq 'is')       { is(       $book->{$test->[1]}, $test->[2], ".. '$test->[1]' found [$isbn]"); } 
+                elsif($test->[0] eq 'isnt')     { isnt(     $book->{$test->[1]}, $test->[2], ".. '$test->[1]' found [$isbn]"); } 
+                elsif($test->[0] eq 'like')     { like(     $book->{$test->[1]}, $test->[2], ".. '$test->[1]' found [$isbn]"); } 
+                elsif($test->[0] eq 'unlike')   { unlike(   $book->{$test->[1]}, $test->[2], ".. '$test->[1]' found [$isbn]"); }
 
-	$isbn   = "9780571239566";
-	$record = $scraper->search($isbn);
-    $error  = $record->error || '';
-
-    SKIP: {
-        skip "Website unavailable", 19   if($error =~ /website appears to be unavailable/);
-
-        unless($record->found) {
-            diag("ERROR: [$isbn] ".$record->error);
-        }
-        
-        {
-            is($record->found,1);
-            is($record->found_in,'EdenBooks');
-
-            my $book = $record->book;
-            is($book->{'isbn'},         '9780571239566'         ,'.. isbn found');
-            is($book->{'isbn10'},       '0571239560'            ,'.. isbn10 found');
-            is($book->{'isbn13'},       '9780571239566'         ,'.. isbn13 found');
-            is($book->{'ean13'},        '9780571239566'         ,'.. ean13 found');
-            is($book->{'author'},       q|Deborah Curtis|       ,'.. author found');
-            like($book->{'title'},      qr|Touching From A Distance|    ,'.. title found');
-            like($book->{'book_link'},  qr|http://www.edenbookshop.co.uk/books/touching-from-a-distance-1548377.html|);
-            is($book->{'image_link'},   'http://www.eden.co.uk/images/300/9780571239566.jpg');
-            is($book->{'thumb_link'},   'http://www.eden.co.uk/images/150/9780571239566.jpg');
-            like($book->{'description'},qr|Ian Curtis left behind a legacy rich in artistic genius|);
-            is($book->{'publisher'},    'Faber And Faber'       ,'.. publisher found');
-            is($book->{'pubdate'},      '4th October 2007'      ,'.. pubdate found');
-            is($book->{'binding'},      'Paperback'             ,'.. binding found');
-            is($book->{'pages'},        240                     ,'.. pages found');
-            is($book->{'width'},        129                     ,'.. width found');
-            is($book->{'height'},       198                     ,'.. height found');
-            is($book->{'weight'},       200                     ,'.. weight found');
+            }
 
             #use Data::Dumper;
             #diag("book=[".Dumper($book)."]");
